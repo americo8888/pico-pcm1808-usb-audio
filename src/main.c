@@ -86,13 +86,9 @@ enum {
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
-// Audio controls
-bool mute[N_CHANNELS + 1];
-uint16_t volume[N_CHANNELS + 1];
 uint32_t sampFreq;
 uint8_t clkValid;
 
-audio20_control_range_2_n_t(1) volumeRng[N_CHANNELS + 1];
 audio20_control_range_4_n_t(1) sampleFreqRng;
 
 void led_blinking_task(void);
@@ -312,42 +308,32 @@ void audio_task(void) {
 
 bool tud_audio_set_req_ep_cb(uint8_t rhport, tusb_control_request_t const *p_request, uint8_t *pBuff) {
   (void) rhport; (void) pBuff;
-  return (p_request->bRequest == AUDIO20_CS_REQ_CUR);
+  (void) p_request;
+  return false;
 }
 
 bool tud_audio_set_req_itf_cb(uint8_t rhport, tusb_control_request_t const *p_request, uint8_t *pBuff) {
   (void) rhport; (void) pBuff;
-  return (p_request->bRequest == AUDIO20_CS_REQ_CUR);
+  (void) p_request;
+  return false;
 }
 
 bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request, uint8_t *pBuff) {
   (void) rhport;
-  uint8_t channelNum = TU_U16_LOW(p_request->wValue);
   uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
   uint8_t entityID = TU_U16_HIGH(p_request->wIndex);
 
   if (p_request->bRequest != AUDIO20_CS_REQ_CUR) return false;
 
-  // If request is for our feature unit
-  if (entityID == 2) {
-    if (channelNum > N_CHANNELS) return false;
-
-    if (ctrlSel == AUDIO20_FU_CTRL_MUTE) {
-      mute[channelNum] = ((audio20_control_cur_1_t *) pBuff)->bCur;
-      return true;
-    } else if (ctrlSel == AUDIO20_FU_CTRL_VOLUME) {
-      volume[channelNum] = (uint16_t) ((audio20_control_cur_2_t *) pBuff)->bCur;
-      return true;
-    }
-  }
-
   // If request is for our clock source
   if (entityID == 4) {
     if (ctrlSel == AUDIO20_CS_CTRL_SAM_FREQ) {
       TU_VERIFY(p_request->wLength == sizeof(audio20_control_cur_4_t));
-      sampFreq = (uint32_t) ((audio20_control_cur_4_t *) pBuff)->bCur;
-      return true;
-    } else if (ctrlSel == AUDIO20_CS_CTRL_CLK_VALID) {
+
+      uint32_t requested_freq = (uint32_t)((audio20_control_cur_4_t *) pBuff)->bCur;
+      if (requested_freq != AUDIO_SAMPLE_RATE) return false;
+
+      sampFreq = AUDIO_SAMPLE_RATE;
       return true;
     }
   }
@@ -366,29 +352,15 @@ bool tud_audio_get_req_itf_cb(uint8_t rhport, tusb_control_request_t const *p_re
 
 bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request) {
   (void) rhport;
-  uint8_t channelNum = TU_U16_LOW(p_request->wValue);
   uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
   uint8_t entityID = TU_U16_HIGH(p_request->wIndex);
 
   if (entityID == 1) {
     if (ctrlSel == AUDIO20_TE_CTRL_CONNECTOR) {
+      if (p_request->bRequest != AUDIO20_CS_REQ_CUR) return false;
+
       audio20_desc_channel_cluster_t ret = { .bNrChannels = 2, .bmChannelConfig = 0x03, .iChannelNames = 0 };
       return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, (void *) &ret, sizeof(ret));
-    }
-  }
-
-  if (entityID == 2) {
-    if (channelNum > N_CHANNELS) return false;
-
-    if (ctrlSel == AUDIO20_FU_CTRL_MUTE) {
-      return tud_control_xfer(rhport, p_request, &mute[channelNum], 1);
-    } else if (ctrlSel == AUDIO20_FU_CTRL_VOLUME) {
-      if (p_request->bRequest == AUDIO20_CS_REQ_CUR) {
-        return tud_control_xfer(rhport, p_request, &volume[channelNum], sizeof(volume[channelNum]));
-      } else if (p_request->bRequest == AUDIO20_CS_REQ_RANGE) {
-        audio20_control_range_2_n_t(1) ret = { .wNumSubRanges = 1, .subrange[0] = { .bMin = -90, .bMax = 90, .bRes = 1 }};
-        return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, (void *) &ret, sizeof(ret));
-      }
     }
   }
 
@@ -397,10 +369,12 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
       if (p_request->bRequest == AUDIO20_CS_REQ_CUR) {
         return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &sampFreq, sizeof(sampFreq));
       } else if (p_request->bRequest == AUDIO20_CS_REQ_RANGE) {
-        return tud_control_xfer(rhport, p_request, &sampleFreqRng, sizeof(sampleFreqRng));
+        return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &sampleFreqRng, sizeof(sampleFreqRng));
       }
     } else if (ctrlSel == AUDIO20_CS_CTRL_CLK_VALID) {
-      return tud_control_xfer(rhport, p_request, &clkValid, sizeof(clkValid));
+      if (p_request->bRequest != AUDIO20_CS_REQ_CUR) return false;
+
+      return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &clkValid, sizeof(clkValid));
     }
   }
   return false;

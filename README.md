@@ -1,6 +1,6 @@
 # Raspberry Pi Pico - PCM1808 Stereo 24-bit I2S Slave Microphone
 
-This project is a modified version of the TinyUSB `audio_4_channel_mic` example for the Raspberry Pi Pico (RP2040). It has been adapted to capture stereo (2-channel) audio from a **PCM1808** module configured as an **I2S Master**.
+This project is a modified TinyUSB USB audio microphone example for the Raspberry Pi Pico (RP2040). It has been adapted to capture stereo (2-channel) audio from a **PCM1808** module configured as an **I2S Master**.
 
 The Pico operates in **I2S Slave mode**, listening for external bit clock (BCLK) and word select (LRCK) signals from the PCM1808 and sampling data on each rising edge.
 
@@ -72,5 +72,5 @@ make -j$(nproc)
 1.  Hold the **BOOTSEL** button on your Raspberry Pi Pico.
 2.  Plug the Pico into your USB port.
 3.  The Pico will appear as a mass storage device named `RPI-RP2`.
-4.  Drag and drop the `audio_4_channel_mic.uf2` file (found in the `build` folder) onto the `RPI-RP2` drive.
+4.  Drag and drop the `pcm1808_stereo_mic.uf2` file (found in the `build` folder) onto the `RPI-RP2` drive.
 5.  The Pico will reboot automatically and be recognized as **"MicNode_Stereo"**.

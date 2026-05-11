@@ -6,7 +6,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/family_support.cmake)
 function(family_add_linkermap TARGET)
 endfunction()
 
-project(audio_4_channel_mic C CXX ASM)
+project(pcm1808_stereo_mic C CXX ASM)
 
 # Checks this example is valid for the family and initializes the project
 family_initialize_project(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR})
