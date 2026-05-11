@@ -320,23 +320,8 @@ bool tud_audio_set_req_itf_cb(uint8_t rhport, tusb_control_request_t const *p_re
 
 bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request, uint8_t *pBuff) {
   (void) rhport;
-  uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
-  uint8_t entityID = TU_U16_HIGH(p_request->wIndex);
-
-  if (p_request->bRequest != AUDIO20_CS_REQ_CUR) return false;
-
-  // If request is for our clock source
-  if (entityID == 4) {
-    if (ctrlSel == AUDIO20_CS_CTRL_SAM_FREQ) {
-      TU_VERIFY(p_request->wLength == sizeof(audio20_control_cur_4_t));
-
-      uint32_t requested_freq = (uint32_t)((audio20_control_cur_4_t *) pBuff)->bCur;
-      if (requested_freq != AUDIO_SAMPLE_RATE) return false;
-
-      sampFreq = AUDIO_SAMPLE_RATE;
-      return true;
-    }
-  }
+  (void) p_request;
+  (void) pBuff;
   return false;
 }
 
