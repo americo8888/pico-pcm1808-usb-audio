@@ -10,18 +10,18 @@ if __name__ == '__main__':
     # differently from tested list below. Uncomment the next line to see full list and try to pick correct one
     # print(sd.query_devices())
 
-    fs = 48000  		# Sample rate
+    fs = 48000     # Sample rate
     duration = 1   # Duration of recording
+    channels = 2
 
     if platform.system() == 'Windows':
-        # WDM-KS is needed since there are more than one MicNode device APIs (at least in Windows)
-        device = 'Microphone (MicNode_4_Ch), Windows WASAPI'
+        device = 'Microphone (MicNode_Stereo), Windows WASAPI'
     elif platform.system() == 'Darwin':
-        device = 'MicNode_4_Ch'
+        device = 'MicNode_Stereo'
     else:
-        device ='default'
+        device = 'default'
 
-    myrecording = sd.rec(int(duration * fs), samplerate=fs, channels=4, dtype='int16', device=device)
+    myrecording = sd.rec(int(duration * fs), samplerate=fs, channels=channels, dtype='float32', device=device)
     print('Waiting...')
     sd.wait()  # Wait until recording is finished
     print('Done!')
@@ -33,6 +33,6 @@ if __name__ == '__main__':
     plt.plot(time, myrecording)
     plt.xlabel('Time [s]')
     plt.ylabel('Amplitude')
-    plt.title('MicNode 4 Channel')
-    plt.legend(['CH-1', 'CH-2', 'CH-3','CH-4'])
+    plt.title('MicNode Stereo')
+    plt.legend(['Left', 'Right'])
     plt.show()

@@ -330,6 +330,8 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
 
   // If request is for our feature unit
   if (entityID == 2) {
+    if (channelNum > N_CHANNELS) return false;
+
     if (ctrlSel == AUDIO20_FU_CTRL_MUTE) {
       mute[channelNum] = ((audio20_control_cur_1_t *) pBuff)->bCur;
       return true;
@@ -376,6 +378,8 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
   }
 
   if (entityID == 2) {
+    if (channelNum > N_CHANNELS) return false;
+
     if (ctrlSel == AUDIO20_FU_CTRL_MUTE) {
       return tud_control_xfer(rhport, p_request, &mute[channelNum], 1);
     } else if (ctrlSel == AUDIO20_FU_CTRL_VOLUME) {

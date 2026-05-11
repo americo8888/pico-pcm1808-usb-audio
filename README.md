@@ -11,7 +11,7 @@ The Pico operates in **I2S Slave mode**, listening for external bit clock (BCLK)
 - **USB Class**: USB Audio Class 2.0 (UAC2) compatible.
 - **Implementation**:
   - PIO-based I2S input engine for precise clock synchronization.
-  - DMA double-buffering for low-latency, glitch-free capture.
+  - DMA ring buffering for low-latency, glitch-free capture.
   - Custom UAC2 descriptors for improved host compatibility (tested with Audacity).
 
 ## Hardware Connections
@@ -24,7 +24,7 @@ The Pico operates in **I2S Slave mode**, listening for external bit clock (BCLK)
 | **VDD** | **VBUS (5V)** | Power (5V from USB) |
 | **GND** | **GND** | Common Ground |
 
-*Note: A short is applied to **OP2** to configure the PCM1808 in 48 kHz Master mode (setting the internal clock ratio to 256fs).*
+*Note: A short is applied to **OP2** for the PCM1808 module's 48 kHz master-mode configuration.*
 
 ## Build Instructions (Ubuntu 24.04 LTS)
 
