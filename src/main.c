@@ -37,6 +37,7 @@
 #include "hardware/pio.h"
 #include "hardware/dma.h"
 #include "hardware/irq.h"
+#include "hardware/sync.h"
 #include "i2s_slave.pio.h"
 
 //--------------------------------------------------------------------+
@@ -54,12 +55,21 @@
 // DMA buffer size: 1ms of audio at 48kHz Stereo
 #define SAMPLES_PER_MS    (AUDIO_SAMPLE_RATE / 1000)
 #define DMA_BUF_SIZE      (SAMPLES_PER_MS * N_CHANNELS)
+#define DMA_BUFFER_COUNT  8
+#define USB_PACKET_SIZE   (DMA_BUF_SIZE * BYTES_PER_SAMPLE)
 
-// Double buffer for DMA
-static uint32_t i2s_rx_buffer[2][DMA_BUF_SIZE];
-static uint8_t usb_tx_buffer[DMA_BUF_SIZE * BYTES_PER_SAMPLE];
-static volatile uint8_t dma_buf_index = 0;
-static volatile bool dma_data_ready = false;
+// Ring of DMA buffers. The DMA IRQ queues filled buffers and audio_task()
+// drains them into TinyUSB without overwriting unread audio.
+static uint32_t i2s_rx_buffer[DMA_BUFFER_COUNT][DMA_BUF_SIZE];
+static uint8_t usb_tx_buffer[USB_PACKET_SIZE];
+static volatile uint8_t dma_write_index = 0;
+static volatile uint8_t ready_queue[DMA_BUFFER_COUNT];
+static volatile uint8_t ready_head = 0;
+static volatile uint8_t ready_tail = 0;
+static volatile uint8_t ready_count = 0;
+static volatile uint32_t dma_overrun_count = 0;
+static volatile uint32_t usb_backpressure_count = 0;
+static volatile uint32_t usb_short_write_count = 0;
 
 static uint dma_chan;
 
@@ -88,13 +98,74 @@ audio20_control_range_4_n_t(1) sampleFreqRng;
 void led_blinking_task(void);
 void audio_task(void);
 static void dma_handler(void);
+static bool buffer_is_queued(uint8_t buffer_index);
+static bool pop_ready_buffer(uint8_t *buffer_index);
+
+static bool buffer_is_queued(uint8_t buffer_index) {
+  uint8_t pos = ready_tail;
+
+  for (uint8_t i = 0; i < ready_count; i++) {
+    if (ready_queue[pos] == buffer_index) {
+      return true;
+    }
+
+    pos = (uint8_t)((pos + 1) % DMA_BUFFER_COUNT);
+  }
+
+  return false;
+}
 
 // DMA Interrupt Handler
 static void dma_handler(void) {
-    dma_hw->ints0 = 1u << dma_chan;
-    dma_buf_index = 1 - dma_buf_index;
-    dma_channel_set_write_addr(dma_chan, i2s_rx_buffer[dma_buf_index], true);
-    dma_data_ready = true;
+  dma_hw->ints0 = 1u << dma_chan;
+
+  uint8_t filled_index = dma_write_index;
+
+  if (ready_count >= DMA_BUFFER_COUNT - 1) {
+    // Keep one free buffer for the next DMA transfer. If the USB side falls
+    // behind, drop the oldest complete buffer and record the event.
+    ready_tail = (uint8_t)((ready_tail + 1) % DMA_BUFFER_COUNT);
+    ready_count--;
+    dma_overrun_count++;
+  }
+
+  ready_queue[ready_head] = filled_index;
+  ready_head = (uint8_t)((ready_head + 1) % DMA_BUFFER_COUNT);
+  ready_count++;
+
+  uint8_t next_index = 0;
+  bool found_next = false;
+  for (uint8_t i = 0; i < DMA_BUFFER_COUNT; i++) {
+    if (i != filled_index && !buffer_is_queued(i)) {
+      next_index = i;
+      found_next = true;
+      break;
+    }
+  }
+
+  if (!found_next) {
+    next_index = filled_index;
+    dma_overrun_count++;
+  }
+
+  dma_write_index = next_index;
+  dma_channel_set_write_addr(dma_chan, i2s_rx_buffer[dma_write_index], true);
+}
+
+static bool pop_ready_buffer(uint8_t *buffer_index) {
+  uint32_t save = save_and_disable_interrupts();
+
+  if (ready_count == 0) {
+    restore_interrupts(save);
+    return false;
+  }
+
+  *buffer_index = ready_queue[ready_tail];
+  ready_tail = (uint8_t)((ready_tail + 1) % DMA_BUFFER_COUNT);
+  ready_count--;
+
+  restore_interrupts(save);
+  return true;
 }
 
 // PIO I2S Slave Initializer
@@ -209,11 +280,15 @@ void tud_resume_cb(void) {
 //--------------------------------------------------------------------+
 
 void audio_task(void) {
-  if (!dma_data_ready) return;
-  dma_data_ready = false;
+  tu_fifo_t *ep_in_fifo = tud_audio_get_ep_in_ff();
+  if (ep_in_fifo == NULL || tu_fifo_remaining(ep_in_fifo) < USB_PACKET_SIZE) {
+    usb_backpressure_count++;
+    return;
+  }
 
-  // Process the buffer that was just filled (the other one)
-  uint8_t filled_buf_index = 1 - dma_buf_index;
+  uint8_t filled_buf_index = 0;
+  if (!pop_ready_buffer(&filled_buf_index)) return;
+
   uint32_t *src = i2s_rx_buffer[filled_buf_index];
   
   // Pack 32-bit (containing 24-bit data in [23:0]) into 3-byte USB format
@@ -225,7 +300,10 @@ void audio_task(void) {
     usb_tx_buffer[i * 3 + 2] = (uint8_t)((sample >> 16) & 0xFF);
   }
 
-  tud_audio_write(usb_tx_buffer, DMA_BUF_SIZE * BYTES_PER_SAMPLE);
+  uint16_t written = tud_audio_write(usb_tx_buffer, USB_PACKET_SIZE);
+  if (written != USB_PACKET_SIZE) {
+    usb_short_write_count++;
+  }
 }
 
 //--------------------------------------------------------------------+
