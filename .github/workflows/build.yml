@@ -15,11 +15,15 @@ jobs:
     - name: Descargar repositorio principal (en la raíz)
       uses: actions/checkout@v4
 
-    - name: Descargar TinyUSB como submódulo o clonar en la ruta correcta
-      uses: actions/checkout@v4
-      with:
-        repository: hathach/tinyusb
-        path: hw/bsp/../../../../tinyusb # Ajustamos la ruta para que coincida
+    - name: Clonar TinyUSB en la ruta relativa exacta
+      run: |
+        # El CMakeLists.txt busca en ../../../hw/bsp/family_support.cmake desde la carpeta raíz.
+        # Esto significa que necesita encontrar hw/bsp a tres niveles de distancia o en la estructura superior.
+        # Clonamos TinyUSB directamente y lo movemos a la ruta que espera.
+        git clone https://github.com/hathach/tinyusb.git temp_tinyusb
+        mkdir -p hw/bsp
+        cp -r temp_tinyusb/* hw/bsp/
+        rm -rf temp_tinyusb
 
     - name: Instalar dependencias (CMake, Ninja y Compilador ARM)
       run: |
@@ -32,18 +36,6 @@ jobs:
         cd /home/runner/pico-sdk
         git submodule update --init
         echo "PICO_SDK_PATH=/home/runner/pico-sdk" >> $GITHUB_ENV
-
-    - name: Reestructurar TinyUSB a la ruta exacta ../../../hw/bsp
-      run: |
-        # El CMakeLists.txt está en la raíz, sube 3 niveles y busca hw/bsp/family_support.cmake
-        # Por lo tanto, tinyusb debe quedar en la carpeta padre o en la ruta esperada relativa al proyecto.
-        # Vamos a mover todo el contenido de tinyusb a la ruta relativa correcta desde la raíz:
-        mkdir -p hw/bsp
-        # Si se descargó en otro lado, lo movemos:
-        if [ -d "tinyusb" ]; then
-          mv tinyusb/* hw/bsp/
-          rmdir tinyusb
-        fi
 
     - name: Configurar CMake y Compilar
       run: |
