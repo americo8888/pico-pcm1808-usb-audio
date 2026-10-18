@@ -12,18 +12,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Descargar repositorio principal (en la raíz)
+    - name: Clonar TinyUSB (estructura base)
       uses: actions/checkout@v4
+      with:
+        repository: hathach/tinyusb
+        ref: master
 
-    - name: Clonar TinyUSB en la ruta relativa exacta
-      run: |
-        # El CMakeLists.txt busca en ../../../hw/bsp/family_support.cmake desde la carpeta raíz.
-        # Esto significa que necesita encontrar hw/bsp a tres niveles de distancia o en la estructura superior.
-        # Clonamos TinyUSB directamente y lo movemos a la ruta que espera.
-        git clone https://github.com/hathach/tinyusb.git temp_tinyusb
-        mkdir -p hw/bsp
-        cp -r temp_tinyusb/* hw/bsp/
-        rm -rf temp_tinyusb
+    - name: Clonar tu repositorio dentro de los ejemplos de TinyUSB
+      uses: actions/checkout@v4
+      with:
+        path: examples/device/pico-pcm1808-usb-audio
 
     - name: Instalar dependencias (CMake, Ninja y Compilador ARM)
       run: |
@@ -39,6 +37,7 @@ jobs:
 
     - name: Configurar CMake y Compilar
       run: |
+        cd examples/device/pico-pcm1808-usb-audio
         mkdir build
         cd build
         cmake -G "Ninja" ..
@@ -48,4 +47,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: firmware-uf2
-        path: build/**/*.uf2
+        path: examples/device/pico-pcm1808-usb-audio/build/**/*.uf2
