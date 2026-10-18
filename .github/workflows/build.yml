@@ -40,7 +40,8 @@ jobs:
         cd examples/device/pico-pcm1808-usb-audio
         mkdir build
         cd build
-        cmake -G "Ninja" ..
+        # AQUÍ ESTÁ EL CAMBIO: Añadimos -DBOARD=raspberry_pi_pico
+        cmake -G "Ninja" -DBOARD=raspberry_pi_pico ..
         ninja
 
     - name: Guardar archivo .uf2 (Artifact)
