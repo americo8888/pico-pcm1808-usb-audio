@@ -1,61 +1,43 @@
-name: Build Pico Firmware
+name: Compilar Firmware Raspberry Pi Pico
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
   pull_request:
-  workflow_dispatch:
+    branches: [ main, master ]
+  workflow_dispatch: # Permite compilar manualmente desde la web de GitHub
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+    - name: Descargar repositorio (con submódulos)
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            cmake \
-            ninja-build \
-            gcc-arm-none-eabi \
-            libnewlib-arm-none-eabi \
-            git \
-            python3
+    - name: Instalar dependencias (CMake, Ninja y Compilador ARM)
+      run: |
+        sudo apt update
+        sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential python3 ninja-build
 
-      - name: Clone Pico SDK
-        run: |
-          git clone https://github.com/raspberrypi/pico-sdk.git $HOME/pico-sdk
-          cd $HOME/pico-sdk
-          git submodule update --init
+    - name: Descargar y configurar Pico SDK
+      run: |
+        git clone https://github.com/raspberrypi/pico-sdk.git /home/runner/pico-sdk
+        cd /home/runner/pico-sdk
+        git submodule update --init
+        echo "PICO_SDK_PATH=/home/runner/pico-sdk" >> $GITHUB_ENV
 
-      - name: Configure
-        env:
-          PICO_SDK_PATH: ${{ github.workspace }}/../pico-sdk
-        run: |
-          mkdir build
-          cd build
-          cmake .. \
-            -DPICO_SDK_PATH=$HOME/pico-sdk \
-            -G Ninja
+    - name: Configurar CMake y Compilar
+      run: |
+        mkdir build
+        cd build
+        cmake -G "Ninja" ..
+        ninja
 
-      - name: Build
-        run: |
-          cd build
-          ninja
-
-      - name: Upload firmware
-        uses: actions/upload-artifact@v4
-        with:
-          name: pico-firmware
-          path: |
-            build/**/*.uf2
-            build/**/*.elf
-            build/**/*.bin
-            build/**/*.hex
+    - name: Guardar archivo .uf2 (Artifact)
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware-uf2
+        path: build/**/*.uf2
