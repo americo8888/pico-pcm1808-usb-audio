@@ -12,16 +12,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Descargar repositorio principal
+    - name: Descargar repositorio principal (en la raíz)
       uses: actions/checkout@v4
-      with:
-        path: pico-pcm1808-usb-audio
 
-    - name: Descargar TinyUSB (para satisfacer las dependencias de BSP)
+    - name: Descargar TinyUSB como submódulo o clonar en la ruta correcta
       uses: actions/checkout@v4
       with:
         repository: hathach/tinyusb
-        path: tinyusb
+        path: hw/bsp/../../../../tinyusb # Ajustamos la ruta para que coincida
 
     - name: Instalar dependencias (CMake, Ninja y Compilador ARM)
       run: |
@@ -35,15 +33,20 @@ jobs:
         git submodule update --init
         echo "PICO_SDK_PATH=/home/runner/pico-sdk" >> $GITHUB_ENV
 
-    - name: Reestructurar carpetas para que CMake encuentre TinyUSB
+    - name: Reestructurar TinyUSB a la ruta exacta ../../../hw/bsp
       run: |
-        # Mueve tinyusb al nivel superior que el CMakeLists.txt del autor espera (../../../hw/bsp/...)
-        mkdir -p hw
-        mv tinyusb hw/bsp
+        # El CMakeLists.txt está en la raíz, sube 3 niveles y busca hw/bsp/family_support.cmake
+        # Por lo tanto, tinyusb debe quedar en la carpeta padre o en la ruta esperada relativa al proyecto.
+        # Vamos a mover todo el contenido de tinyusb a la ruta relativa correcta desde la raíz:
+        mkdir -p hw/bsp
+        # Si se descargó en otro lado, lo movemos:
+        if [ -d "tinyusb" ]; then
+          mv tinyusb/* hw/bsp/
+          rmdir tinyusb
+        fi
 
     - name: Configurar CMake y Compilar
       run: |
-        cd pico-pcm1808-usb-audio
         mkdir build
         cd build
         cmake -G "Ninja" ..
@@ -53,4 +56,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: firmware-uf2
-        path: pico-pcm1808-usb-audio/build/**/*.uf2
+        path: build/**/*.uf2
