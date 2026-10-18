@@ -5,17 +5,23 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch: # Permite compilar manualmente desde la web de GitHub
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Descargar repositorio (con submódulos)
+    - name: Descargar repositorio principal
       uses: actions/checkout@v4
       with:
-        submodules: recursive
+        path: pico-pcm1808-usb-audio
+
+    - name: Descargar TinyUSB (para satisfacer las dependencias de BSP)
+      uses: actions/checkout@v4
+      with:
+        repository: hathach/tinyusb
+        path: tinyusb
 
     - name: Instalar dependencias (CMake, Ninja y Compilador ARM)
       run: |
@@ -29,8 +35,15 @@ jobs:
         git submodule update --init
         echo "PICO_SDK_PATH=/home/runner/pico-sdk" >> $GITHUB_ENV
 
+    - name: Reestructurar carpetas para que CMake encuentre TinyUSB
+      run: |
+        # Mueve tinyusb al nivel superior que el CMakeLists.txt del autor espera (../../../hw/bsp/...)
+        mkdir -p hw
+        mv tinyusb hw/bsp
+
     - name: Configurar CMake y Compilar
       run: |
+        cd pico-pcm1808-usb-audio
         mkdir build
         cd build
         cmake -G "Ninja" ..
@@ -40,4 +53,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: firmware-uf2
-        path: build/**/*.uf2
+        path: pico-pcm1808-usb-audio/build/**/*.uf2
