@@ -51,7 +51,7 @@
 #define PIN_DATA 10
 #define PIN_BCLK 11
 #define PIN_LRCK 12
-
+#define LED_PIN 9
 // DMA buffer size: 1ms of audio at 48kHz Stereo
 #define SAMPLES_PER_MS    (AUDIO_SAMPLE_RATE / 1000)
 #define DMA_BUF_SIZE      (SAMPLES_PER_MS * N_CHANNELS)
